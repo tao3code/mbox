@@ -1,4 +1,4 @@
-TARGET := rise desend zcp
+TARGET := rise desend zcp shrink
 
 all: $(TARGET)
 
