@@ -1,8 +1,8 @@
-TARGET := rise desend zcp shrink overlap
+TARGET := rise desend zcp shrink overlap mbox15
 
 all: $(TARGET)
 
 %:%.c
-	gcc -g -Wall $< -o $@
+	gcc -g -Wall $< -o $@ -lm
 clean:
-	rm -f $(TARGET) *~
+	rm -f $(TARGET) *~ *.wav
