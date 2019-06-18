@@ -1,5 +1,8 @@
-all: rise
-rise: rise.c
-	gcc -g -Wall rise.c -o rise
+TARGET := rise desend zcp
+
+all: $(TARGET)
+
+%:%.c
+	gcc -g -Wall $< -o $@
 clean:
-	rm -f rise *~
+	rm -f $(TARGET) *~
