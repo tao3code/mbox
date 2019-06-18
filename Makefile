@@ -1,4 +1,4 @@
-TARGET := rise desend zcp shrink
+TARGET := rise desend zcp shrink overlap
 
 all: $(TARGET)
 
