@@ -8,8 +8,9 @@
 #include <string.h>
 
 #define SAMPLE_RATE	11025
-
-static unsigned data_size = 0;
+#define BUF_SIZE	4096
+#define READ_SPAN	(SAMPLE_RATE >>2)
+#define RELOAD_SPAN	(SAMPLE_RATE >>1)
 
 struct wave_struct {
 	char id_ref[4];
@@ -40,9 +41,12 @@ struct wave_struct {
 struct key_struct {
 	char *name;
 	float hz;
+	unsigned busy;
+	unsigned timer;
+	char trigger;
+	float amplif;
 } keys[] = {
-	{
-	.name = "c1",.hz = 261.626f}, {
+	{.name = "c1",.hz = 261.626f}, {
 	.name = "d1",.hz = 293.665f}, {
 	.name = "e1",.hz = 329.628f}, {
 	.name = "f1",.hz = 349.228f}, {
@@ -60,62 +64,136 @@ struct key_struct {
 
 #define NKEYS	(sizeof(keys)/sizeof(struct key_struct))
 
-float amplif[NKEYS];
-unsigned live[NKEYS];
-char hold[NKEYS];
-int line_count = 0;
+static unsigned tick = 0;
 
-static int update_key_amplif(char *arg)
+static char sample(void)
 {
+	float a, t, amplif, hz;
 	int i;
-	int find = 0;
 
-	if (strlen(arg) < NKEYS) {
-		printf("error: %s\n", arg);
+	t = (float)tick / (float)SAMPLE_RATE;
+	a = 0.0f;
+
+	for (i= 0; i < NKEYS; i++) {
+		amplif = keys[i].amplif;
+		if (amplif < 0.1f) {
+			continue;
+		}
+
+		hz = keys[i].hz;
+
+		a += amplif + amplif *
+			    sin(hz * t * 2 * 3.1415926);
+	}
+	a = a * 36.0f;
+	return (unsigned char)a;
+}
+
+static int line_count = 0;
+
+static int trigger_key(int key)
+{
+	if (!keys[key].trigger)
+		return 0;
+
+	if (keys[key].timer) {
+		keys[key].timer--;
+		return 0;
+	}
+
+	if (keys[key].busy) {
+		printf("Too tight! Key busy at line:%d\n", line_count);
 		return -1;
 	}
 
-	for (i = 0; i < NKEYS; i++)
-		if (arg[i] == 'X') {
-			if (hold[i]) {
-				hold[i]--;
-				printf("waring: ingnore %d at %s:%d\n",
-					i, arg, line_count);
-				continue;
-			}
-			amplif[i] = 1.0f;
-			live[i] = 0;
-			hold[i] = 1;
-			printf("%s ", keys[i].name);
-			find++;
-		} else {
-			if (hold[i])
-				hold[i]--;
+	keys[key].trigger = 0;
+	keys[key].amplif = 1.0f;
+	keys[key].busy = RELOAD_SPAN;
+
+	return 0;
+}
+
+static int play_keys(void)
+{
+	int i, err;
+
+	for (i = 0; i < NKEYS; i++) {
+		err = trigger_key(i);
+		if (err) {
+			printf("Can't play key %d\n", i);
+			return -1;
 		}
+	}
 
-	line_count++;
+	return 0;
+}
 
-	if (find)
-		printf(" :%d\n", line_count);
+static void damp_with_tick(void)
+{
+	int i;
 
+	for (i= 0; i < NKEYS; i++) {
+		if (keys[i].busy)
+			keys[i].busy--;
+
+		if (keys[i].amplif < 0.1f) {
+			keys[i].amplif = 0.0f;
+			continue;
+		}
+		keys[i].amplif = keys[i].amplif * pow(0.5f, 3.0f/ SAMPLE_RATE);
+	}
+}
+
+static int read_list(FILE *fp)
+{
+	char lbuf[128];
+	int len = 0, find = 0, i;
+
+	while (!find) {
+		if(feof(fp))
+			return -1;
+
+		memset(lbuf, 0, sizeof(lbuf));
+		fgets(lbuf, sizeof(lbuf), fp);
+
+		len = strlen(lbuf);
+		line_count++;
+
+		if (len < 3)
+			continue;
+
+		if (strncmp(lbuf, ">: ", 3))
+			continue;
+
+		find = 1;
+	}
+
+	if (!find)
+		return -1;
+
+	for (i = 0; i < NKEYS; i++) {
+		switch (lbuf[i+3]) {
+		case 'X':
+			keys[i].trigger = 1;
+			break;
+		}
+	}
 	return 0;
 }
 
 int main(int argc, char *argv[])
 {
-	int i, j, k, err;
+	int err, i, fd;
+	int len = 0, find = 0, data_size = 0;
 	char *buf;
-	int fd;
-	float A, a, t;
 	FILE *fd_in = NULL;
-	char lbuf[128];
 	char path[128] = {};
-	int len, find = 0;
+	unsigned next_read = 0;
 
 	if (argc != 2)
 		return 0;
 
-	buf = malloc(SAMPLE_RATE >> 2);
+	buf = malloc(BUF_SIZE);
 	if (!buf) {
 		perror("malloc:");
 		goto alloc_buf;
@@ -148,43 +226,34 @@ int main(int argc, char *argv[])
 	}
 	lseek(fd, sizeof(struct wave_struct), SEEK_SET);
 
-	while (!feof(fd_in)) {
-		memset(lbuf, 0, sizeof(lbuf));
-		fgets(lbuf, sizeof(lbuf), fd_in);
+	while(1) {
+		if (tick >= next_read) {
+			err = read_list(fd_in);
+			next_read += READ_SPAN;
+		}
 
-		len = strlen(lbuf);
-
-		if (len < 3)
-			continue;
-
-		if (strncmp(lbuf, ">: ", 3))
-			continue;
-
-		err = update_key_amplif(&lbuf[3]);
 		if (err)
 			break;
 
-		for (j = 0; j < (SAMPLE_RATE >> 2); j++) {
-			t = (float)(j + data_size) / (float)SAMPLE_RATE;
-			a = 0.0f;
-			for (k = 0; k < NKEYS; k++) {
-				if (amplif[k] < 0.1f) {
-					amplif[k] = 0.0f;
-					live[k] = 0;
-					continue;
-				}
+		err = play_keys();
+		if (err)
+			break;
 
-				a += amplif[k] + amplif[k] *
-				    sin(keys[k].hz * t * 2 * 3.1415926);
-				amplif[k] = pow(0.5f, 
-					(float)live[k]*4.0f/ SAMPLE_RATE);
-				live[k]++;
-			}
-			A = a * 36.0f;
-			buf[j] = (unsigned char)A;
+		buf[len] = sample();
+		damp_with_tick();
+		
+		len++;
+		if (len >= BUF_SIZE - 1) {
+			data_size += write(fd, buf, len);
+			len = 0;
 		}
-		data_size += write(fd, buf, SAMPLE_RATE >> 2);
+		
+		tick++;
 	}
+		
+	
+	if (len)
+		data_size += write(fd, buf, len);
 
 	head.size = data_size + sizeof(struct wave_struct) - 8;
 	head.data_size = data_size;
