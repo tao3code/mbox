@@ -13,8 +13,8 @@ static int rise_lbuf(const char *in1, const char *in2, char *out, size_t len)
 	memcpy(out, in2, len);
 
 	for (i = 0; i < len; i++) {
-		if (in1[i] == 'X') {
-			if (in2[i] == 'X') {
+		if (in1[i] == 'X' || in1[i] == 'V') {
+			if (in2[i] == 'X' || in2[i] == 'V') {
 				fprintf(stderr,
 					"Can't overlap, has same key!!!\n");
 				return -1;
@@ -25,7 +25,7 @@ static int rise_lbuf(const char *in1, const char *in2, char *out, size_t len)
 					"The line can't play, !!!\n");
 				return -1;
 			}
-			out[i] = 'X';
+			out[i] = in1[i];
 		}
 	}
 

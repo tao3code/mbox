@@ -11,7 +11,7 @@ static int rise_lbuf(const char *in, char *out, size_t len)
 	memcpy(out, in, len);
 
 	for (i = 0; i < len; i++) {
-		if (in[i] == 'X') {
+		if (in[i] == 'X' || in[i] == 'V') {
 			out[i] = tmplt[i];
 		}
 	}

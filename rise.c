@@ -13,14 +13,14 @@ static int rise_lbuf(const char *in, char *out, size_t len)
 	memcpy(out, in, len);
 
 	for (i = 0; i < len; i++) {
-		if (in[i] == 'X') {
+		if (in[i] == 'X' || in[i] == 'V') {
 			if (i >= 17) {
 				fprintf(stderr,
 					"Can't rise, has highest key!!!\n");
 				return -1;
 			}
 			out[i] = tmplt[i];
-			out[i + 1] = 'X';
+			out[i + 1] = in[i];
 		}
 	}
 

@@ -46,7 +46,8 @@ struct key_struct {
 	char trigger;
 	float amplif;
 } keys[] = {
-	{.name = "c1",.hz = 261.626f}, {
+	{
+	.name = "c1",.hz = 261.626f}, {
 	.name = "d1",.hz = 293.665f}, {
 	.name = "e1",.hz = 329.628f}, {
 	.name = "f1",.hz = 349.228f}, {
@@ -74,7 +75,7 @@ static char sample(void)
 	t = (float)tick / (float)SAMPLE_RATE;
 	a = 0.0f;
 
-	for (i= 0; i < NKEYS; i++) {
+	for (i = 0; i < NKEYS; i++) {
 		amplif = keys[i].amplif;
 		if (amplif < 0.1f) {
 			continue;
@@ -82,8 +83,7 @@ static char sample(void)
 
 		hz = keys[i].hz;
 
-		a += amplif + amplif *
-			    sin(hz * t * 2 * 3.1415926);
+		a += amplif + amplif * sin(hz * t * 2 * 3.1415926);
 	}
 	a = a * 36.0f;
 	return (unsigned char)a;
@@ -132,7 +132,7 @@ static void damp_with_tick(void)
 {
 	int i;
 
-	for (i= 0; i < NKEYS; i++) {
+	for (i = 0; i < NKEYS; i++) {
 		if (keys[i].busy)
 			keys[i].busy--;
 
@@ -140,17 +140,17 @@ static void damp_with_tick(void)
 			keys[i].amplif = 0.0f;
 			continue;
 		}
-		keys[i].amplif = keys[i].amplif * pow(0.5f, 3.0f/ SAMPLE_RATE);
+		keys[i].amplif = keys[i].amplif * pow(0.5f, 3.0f / SAMPLE_RATE);
 	}
 }
 
-static int read_list(FILE *fp)
+static int read_list(FILE * fp)
 {
 	char lbuf[128];
 	int len = 0, find = 0, i;
 
 	while (!find) {
-		if(feof(fp))
+		if (feof(fp))
 			return -1;
 
 		memset(lbuf, 0, sizeof(lbuf));
@@ -172,9 +172,13 @@ static int read_list(FILE *fp)
 		return -1;
 
 	for (i = 0; i < NKEYS; i++) {
-		switch (lbuf[i+3]) {
+		switch (lbuf[i + 3]) {
 		case 'X':
 			keys[i].trigger = 1;
+			break;
+		case 'V':
+			keys[i].trigger = 1;
+			keys[i].timer = READ_SPAN >> 1;
 			break;
 		}
 	}
@@ -187,7 +191,7 @@ int main(int argc, char *argv[])
 	int len = 0, find = 0, data_size = 0;
 	char *buf;
 	FILE *fd_in = NULL;
-	char path[128] = {};
+	char path[128] = { };
 	unsigned next_read = 0;
 
 	if (argc != 2)
@@ -226,7 +230,7 @@ int main(int argc, char *argv[])
 	}
 	lseek(fd, sizeof(struct wave_struct), SEEK_SET);
 
-	while(1) {
+	while (1) {
 		if (tick >= next_read) {
 			err = read_list(fd_in);
 			next_read += READ_SPAN;
@@ -241,17 +245,16 @@ int main(int argc, char *argv[])
 
 		buf[len] = sample();
 		damp_with_tick();
-		
+
 		len++;
 		if (len >= BUF_SIZE - 1) {
 			data_size += write(fd, buf, len);
 			len = 0;
 		}
-		
+
 		tick++;
 	}
-		
-	
+
 	if (len)
 		data_size += write(fd, buf, len);
 
