@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#define SAMPLE_RATE	11025
+#define SAMPLE_RATE	44100	
 #define BUF_SIZE	4096
 #define READ_SPAN	(SAMPLE_RATE >>2)
 #define RELOAD_SPAN	(SAMPLE_RATE >>1)
@@ -85,7 +85,7 @@ static char sample(void)
 
 		a += amplif + amplif * sin(hz * t * 2 * 3.1415926);
 	}
-	a = a * 36.0f;
+	a = a * 8.0f;
 	return (unsigned char)a;
 }
 
@@ -108,7 +108,7 @@ static int trigger_key(int key)
 
 	keys[key].trigger = 0;
 	keys[key].amplif = 1.0f;
-	keys[key].busy = RELOAD_SPAN;
+	keys[key].busy = RELOAD_SPAN - 1;
 
 	return 0;
 }
@@ -140,7 +140,8 @@ static void damp_with_tick(void)
 			keys[i].amplif = 0.0f;
 			continue;
 		}
-		keys[i].amplif = keys[i].amplif * pow(0.5f, 3.0f / SAMPLE_RATE);
+		keys[i].amplif = keys[i].amplif * 
+			pow(0.5f, 4.0f / (float)SAMPLE_RATE);
 	}
 }
 
