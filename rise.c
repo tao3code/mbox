@@ -12,7 +12,7 @@ static int rise_lbuf(const char *in, char *out, size_t len)
 
 	memcpy(out, in, len);
 
-	for (i = 0; i < len; i++) {
+	for (i = 18; i > 0; i--) {
 		if (in[i] == 'X' || in[i] == 'V') {
 			if (i >= 17) {
 				fprintf(stderr,
