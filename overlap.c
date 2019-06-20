@@ -6,13 +6,42 @@
 
 static char tmplt[] = ">: --+-+-+-+-+----";
 
-static int rise_lbuf(const char *in1, const char *in2, char *out, size_t len)
+static size_t can_play(const char *arg)
+{
+	size_t len = 0;
+
+	len = strlen(arg);
+
+	if (len < 3)
+		return 0;
+
+	if (strncmp(arg, tmplt, 3))
+		return 0;
+
+	return len;
+}
+
+static int line_count = 0;
+
+static int rise_lbuf(const char *in1, char *in2)
 {
 	int i;
 
-	memcpy(out, in2, len);
+	size_t len1, len2;
 
-	for (i = 0; i < len; i++) {
+	len1 = can_play(in1);
+	len2 = can_play(in2);
+
+	if (!(len1 || len2))
+		return len2;
+
+	if (!(len1 && len2)) {
+		fprintf(stderr, "error: line %d attribute, (%s)->(%s)\n",
+			line_count, in1, in2);
+		return -1;
+	}
+
+	for (i = 0; i < sizeof(tmplt); i++) {
 		if (in1[i] == 'X' || in1[i] == 'V') {
 			if (in2[i] == 'X' || in2[i] == 'V') {
 				fprintf(stderr,
@@ -25,11 +54,11 @@ static int rise_lbuf(const char *in1, const char *in2, char *out, size_t len)
 					"The line can't play, !!!\n");
 				return -1;
 			}
-			out[i] = in1[i];
+			in2[i] = in1[i];
 		}
 	}
 
-	return 0;
+	return len2;
 }
 
 int main(int argc, char *argv[])
@@ -39,10 +68,7 @@ int main(int argc, char *argv[])
 	FILE *fd_out = NULL;
 	char lbuf1[128];
 	char lbuf2[128];
-	char buf[128];
-	unsigned lcount = 0;
 	int ret = 0;
-	size_t len1, len2;
 
 	if (argc != 3)
 		return 0;
@@ -68,28 +94,19 @@ int main(int argc, char *argv[])
 	while (!(feof(fd_in1) || feof(fd_in2))) {
 		memset(lbuf1, 0, sizeof(lbuf1));
 		memset(lbuf2, 0, sizeof(lbuf2));
-		memset(buf, 0, sizeof(buf));
 
 		fgets(lbuf1, sizeof(lbuf1), fd_in1);
 		fgets(lbuf2, sizeof(lbuf2), fd_in2);
-		lcount++;
+		line_count++;
 
-		len1 = strlen(lbuf1);
-		len2 = strlen(lbuf2);
-
-		if (len1 != len2) {
-			fprintf(stderr, "diff: %s, %s at line %d\n", lbuf1, lbuf2, lcount);
-			ret = -1;
+		ret = rise_lbuf(lbuf1, lbuf2);
+		if (ret < 0) {
+			fprintf(stderr, "error: %s, %s at line %d\n",
+				lbuf1, lbuf2, line_count);
 			break;
 		}
 
-		ret = rise_lbuf(lbuf1, lbuf2, buf, len1);
-		if (ret) {
-			fprintf(stderr, "error: %s, %s at line %d\n", lbuf1, lbuf2, lcount);
-			break;
-		}
-
-		fwrite(buf, len1, 1, fd_out);
+		fprintf(fd_out, "%s", lbuf2);
 	}
 
 	fclose(fd_out);
